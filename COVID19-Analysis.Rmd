@@ -1,0 +1,183 @@
+---
+title: "COVID19-Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+```{r}
+library(tidyverse)
+library("ggplot2")
+library("stats")
+library(broom)
+library(statsr)
+library(infer)
+library(MASS)
+```
+
+```{r}
+covid <- read_csv("country_wise_latest.csv")
+covid
+```
+
+# Introduction
+
+   The dataset that I have analyzed in this project is the COVID-19 dataset obtained from Kaggle. The following dataset contains 187 rows and 15 columns. The backbone of this project is to analyze the amount of COVID cases in each country and find any significant trends that play an important role in the hike or slump of the cases. The statistics on this data contains the countries, confirmed cases, active cases, recoveries, new cases, new deaths, new recoveries, Deaths per hundred cases, Recoveries per hundred cases and the change in COVID cases for each country in a week. As the World Health Organization (WHO) plays a huge role for international public health in the dataset the countries were divided in specific regions classified as the WHO Regions. This consists of Africa, Americas, East Asia, Europe, Eastern Mediterranean and Western Pacific.
+
+
+## Research Questions
+
+The following questions that I asked to conduct my analysis are:
+Which of the following countries have the highest and lowest confirmed cases?
+Which WHO Region has the highest and lowest COVID cases?
+What is the relationship between the amount of new cases and new deaths for each country and the predicted trend?
+Can there be a significant reduction in the mean death rate?
+
+From these questions I anticipate to find if there is a relationship between the many variables from the data in relation to many external factors like region, size and population and I look to create visualizations to find any correlation amongst these factors. In question 1, I anticipate that countries like China or India would have the highest confirmed cases due to the high population in those countries, and likewise countries with a lower population having lowest confirmed cases. In question 2, I expect to see regions having a higher concentration of countries to have the highest COVID cases and regions with a lower concentration of countries to have the lowest COVID cases. In question 3, I expect to see a proportionality between the new confirmed cases and the new deaths. This proportionality will be directly proportional with the number of new cases increasing along with the number of new deaths as well. In question 4, I assume the mean death rate can be reduced significantly with reduction in the confirmed cases.
+
+# Methods
+
+  To tackle the following questions I used descriptive statistics. The reason being is the following data has no factor variables and many numbers so I decided to summarize my data using many statistical methods like mean, median, mode, minimum and maximum to better understand the data.
+  
+  For question 1, I had decided to use descriptive statistics and use the min and max functions built in R. The reason being the data was pretty large and to visualize it with many countries and to fit them onto the axis would be very messy.
+
+  For question 2, I had decided to create a horizontal bar chart with the regions compared to the total number of confirmed cases of each country in that region. The stylization features of the ggplot library would really enhance the plot.
+
+  For question 3, I had decided to use linear regression to find a relationship between the new cases for each country and the new deaths. I would then plot a residual graph to check how accurate the relationship is and then predict the values on how many new cases would bring about how many new deaths.
+ 
+  For question 4, I had decided to use hypothesis testing to find if my initial hypothesis on whether the mean death rate could go to 2 is correct. The test the mean with many sample repetitions and plot a histogram.
+
+
+# Results
+
+### Results for question 1:
+
+```{r}
+covid$`Country/Region`[which.max(covid$Confirmed)]
+covid$`Country/Region`[which.min(covid$Confirmed)]
+```
+
+From this the results that I obtained were that the US was the country with the most confirmed cases and Western Sahara was the country with the least confirmed cases.
+
+### Results for question 2:
+
+
+```{r}
+ggplot(covid, mapping = aes(x = Confirmed, y = `WHO Region`)) +
+  geom_bar(stat='identity', fill = "brown") +
+  labs(title = "Confirmed COVID Cases for WHO Regions")
+```
+According to the above bar graph we can see that the Americas region has the most confirmed cases and the Western Pacific region with the least confirmed cases.
+
+### Results for question 3:
+
+```{r}
+covid %>%
+  ggplot(mapping = aes(x = `New cases`, y = `New deaths`)) +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y ~ x, se = FALSE) 
+
+```
+In this above scatter plot we can see that the relationship between the new cases and the new deaths are positively correlated with many points close to the best fit line.
+
+```{r}
+mod.fit <- lm(`New deaths` ~ `New cases`, data = covid)
+tidy(mod.fit)
+```
+From the above linear model we can see that the intercept is 4.896 which means if there are no new cases the predicted amount of new deaths would be around 5. The new cases estimate a value of 0.0196 which suggests that of every new confirmed case the new death would increase by 0.0196 approximately. 
+
+```{r}
+augment(mod.fit) %>% 
+  ggplot(mapping = aes(x = `New cases`, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, color = "red") +
+  labs(y = "Residual value")
+```
+
+In the above residual plot we are able to see that most of the points are clustered next to the 0 mark with some outliers that are way away from the 0 line.
+
+```{r}
+new_cases <- data.frame(`New cases`=c(250, 15000, 67000), check.names = FALSE)
+predict(mod.fit, newdata=new_cases)
+```
+Lastly, from the above predicted model we are able to see that when the new cases are from 250, 15000, 67000 there is a direct correlation, in other words as the amount of new cases increases the amount of new deaths increase. 
+
+### Results for question 4:
+
+
+```{r}
+null.dist.mean <- covid %>%
+  specify(response = `Deaths / 100 Cases`) %>%
+  hypothesize(null = "point", mu = 2) %>% 
+  generate(reps = 10000, type = "bootstrap") %>%
+  calculate(stat = "mean")
+null.dist.mean
+```
+From the above table I had created a sample and ran the mean value specified as 2 to make the death rate the lowest possible. Then repeat the sample 10000 times to get the approximate mean value specified. In this case the null hypothesis is 2 and the alternative hypothesis is less than 2. This is then a one-tailed test. 
+
+```{r}
+ggplot(null.dist.mean, aes(stat)) +
+  geom_histogram(binwidth=0.2) +
+  geom_vline(xintercept = mean(covid$`Deaths / 100 Cases`), color="red")
+```
+ The above graph is a histogram of the samples and the red line represents the mean of the original sample and it is way off to the right. This shows that our null hypothesis was rejected and the original mean death rate would be extremely unlikely if the null hypothesis was true and in this case the alternative hypothesis is correct. 
+
+
+# Conclusion
+
+## Summary
+
+After completing this analysis, I found that most of my initial assumptions were correct, with the linear regression model working as expected with it being directly proportional amongst the new cases and the new deaths. I was surprised that the USA has the highest confirmed cases when my initial assumption was China or India because of their high population.
+
+As with the WHO Regions, my assumption was correct with the Americas region having more countries than the Western Pacific region thereby having the most confirmed cases.
+
+Finally, with regards to the death rate I found that my alternative hypothesis of having a mean death rate of less than 2 is true and the null hypothesis is false. The mean of the original sample is not accurate if the null hypothesis was true so therefore the mean death rate can be reduced significantly. 
+
+## Limitations and Further Questions
+
+The following limitations that I had when analyzing the data was the lack of external factor variables. For example, having a clear segregation of cases in various months could have been much easier in finding a trend in the case count in different countries. I felt because of not having this it was very limiting to use the data to the fullest. One of the other limitations that I had was the number of cases for each country in the dataset was from a particular time and that time only so it was difficult to analyze the trend further in the past and the future from that time. Further questions that I wanted to ask was, is there a connection between the number of cases and the size or population of a country? Does the economical status of a country determine the amount of cases, deaths and recoveries and can this play a major part in the trend? And finally, does the vaccination rate of each country play a role in the case count?
+
+## Additional Visualizations
+
+```{r}
+covid_americas <- covid %>%
+  subset(`WHO Region` == "Americas" , select = c(`Country/Region`, Confirmed))
+covid_americas
+```
+
+
+```{r}
+p <- ggplot(covid_americas, mapping = aes(x = Confirmed , y = `Country/Region`)) +
+  geom_bar(stat='identity', fill = "black") +
+  labs(title = "Confirmed COVID Cases for American Regions") 
+p + scale_x_continuous(labels = scales::comma)
+```
+
+
+## References
+
+“COVID-19 Dataset.” COVID-19 Dataset | Kaggle, www.kaggle.com, https://www.kaggle.com/datasets/imdevskp/corona-virus-report. Accessed 14 June 2022.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
