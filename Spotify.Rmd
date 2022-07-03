@@ -1,0 +1,147 @@
+---
+title: "Spotify Hit Songs Data Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+library(datasets)
+library(caret)
+library(ellipsis)
+library(ellipse)
+library(tidyverse)
+library(ggplot2)
+library(randomForest)
+library(stats)
+library(MASS)
+library(forecast)
+library(corrplot)
+
+theme_set(
+  theme_minimal() +
+    theme(legend.position = "center")
+  )
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+
+```{r}
+spotify <- read.csv("songs_normalize.csv")
+spotify
+```
+
+#Exploratory Data Analysis
+
+```{r}
+p <- spotify %>%
+  count(artist) %>%
+  subset(n >= 19) %>%
+  arrange(desc(n)) 
+  
+ggplot(p, mapping = aes(x = artist, y = n)) +
+  geom_bar(stat = 'identity', fill = "steelblue", width = 0.5) +
+  labs(x = "Artist", y = "No of Songs", title = "Top 5 Artists with most number of hits")
+```
+
+
+```{r}
+spotify$year <- as.numeric(spotify$year)
+spotify
+  
+```
+
+
+```{r}
+spotify$duration <- spotify$duration_ms / 60000
+spotify
+```
+
+```{r}
+spotify$year<-format(round(spotify$year,2),nsmall=2)
+
+```
+
+
+```{r}
+spotify$year <- as.double(spotify$year)
+```
+
+
+
+```{r}
+ggplot(spotify, mapping = aes(y = genre)) +
+  geom_bar(fill = "cadetblue", width = 2) +
+  theme (axis.text.x = element_text(margin = unit(c(0, 0, 0, 0), "mm"), angle = 90)) +         coord_flip()
+
+```
+
+
+
+```{r}
+ggplot(spotify, mapping = aes(x = energy, y = loudness)) +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y ~ x, se = FALSE) 
+```
+
+```{r}
+spotify$explicit <- as.factor(spotify$explicit)
+spotify$mode <- as.factor(spotify$mode)
+
+```
+
+
+
+
+```{r}
+duration_data <- data.frame(mode = c(0,0,1,0,1,1,1,1), speechiness = c(0.0192, 0.0456, 0.0345, 0.0678, 0.0567, 0.0999, 0.0654, 0.0233), acousticness = c(1.13e-03, 5.63e-02, 8.08e-3, 4.16e-02, 1.06e-02, 4.26e-04, 1.06e-02 ,4.07e-02), valence = c(0.2345, 0.7645, 0.3238, 0.4567, 0.9012, 0.8234, 0.8678, 0.7890), tempo = c(100.233, 124.568, 178.900, 197.932, 192.345, 123.789, 97.822, 107.922), popularity = c(78,12,56,71, 99, 0, 1, 45), danceability = c(0.676, 0.566, 0.466, 0.676, 0.676, 0.666, 0.626, 0.968), loudness = c(-2.196, -3.277, -1.196, -3.238, -3.296, -1.186, -3.195, -3.275), energy = c(0.9450, 0.1280, 0.9560, 0.8680, 0.7680, 0.2680, 0.9980, 0.4590), duration = c(NA, NA, NA, NA, NA, NA, NA, NA))
+duration_data$mode <- as.factor(duration_data$mode)
+duration_data$popularity <- as.integer(duration_data$popularity)
+duration_data
+
+```
+
+```{r}
+filters <- spotify %>%
+  subset(, c("mode",  "speechiness", "acousticness", "valence", "tempo", "popularity", "danceability", "loudness", "energy", "duration"))
+filters
+```
+
+
+
+```{r}
+equation <- "duration ~ mode + speechiness + acousticness + valence + tempo + popularity + danceability + loudness + energy"
+formula <- as.formula(equation)
+model <- randomForest(formula = formula, data = filters, ntree = 100, mtry = 9, nodesize = 0.01 * nrow(duration_data))
+duration <- predict(model, newdata = duration_data)
+duration_data$duration <- duration
+duration_data
+```
+
+
+
+
+```{r}
+data <- spotify[, c("speechiness", "acousticness", "valence", "tempo", "popularity", "danceability", "loudness", "energy", "duration")]
+head(data)
+```
+
+```{r}
+data <- as.data.frame(data)
+corr <- round(cor(data), 2)
+```
+
+Correlation Matrix
+```{r}
+corrplot(corr, method = "circle")
+```
+
